@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat Riêng Tư</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f0f13; color: #e8e8f0;
+      height: 100dvh; display: flex; align-items: center; justify-content: center;
+    }
+    #login-screen {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 20px; width: 100%; max-width: 360px; padding: 0 24px;
+    }
+    .logo {
+      font-size: 2.4rem; font-weight: 800; letter-spacing: -1px;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .tagline { font-size: 0.85rem; color: #6b7280; text-align: center; }
+    #login-screen input {
+      width: 100%; padding: 13px 16px; background: #1c1c26;
+      border: 1.5px solid #2a2a38; border-radius: 10px;
+      color: #e8e8f0; font-size: 1rem; outline: none; transition: border-color 0.2s;
+    }
+    #login-screen input:focus { border-color: #a78bfa; }
+    #login-screen button {
+      width: 100%; padding: 13px;
+      background: linear-gradient(135deg, #7c3aed, #3b82f6);
+      border: none; border-radius: 10px; color: #fff;
+      font-size: 1rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+    }
+    #login-screen button:hover { opacity: 0.88; }
+
+    #chat-screen {
+      display: none; flex-direction: column;
+      width: 100%; max-width: 700px; height: 100dvh; background: #13131a;
+    }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; background: #1c1c26; border-bottom: 1px solid #2a2a38;
+    }
+    .header-title {
+      font-weight: 700; font-size: 1.05rem;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .online-badge { font-size: 0.78rem; color: #6b7280; display: flex; align-items: center; gap: 5px; }
+    .dot { width: 7px; height: 7px; background: #22c55e; border-radius: 50%; }
+
+    /* Nút bật/tắt thông báo */
+    #notif-btn {
+      background: #1c1c26; border: 1.5px solid #2a2a38;
+      border-radius: 8px; padding: 5px 10px;
+      color: #6b7280; font-size: 0.78rem; cursor: pointer;
+      display: flex; align-items: center; gap: 5px; transition: all 0.2s;
+      white-space: nowrap;
+    }
+    #notif-btn:hover { border-color: #a78bfa; color: #a78bfa; }
+    #notif-btn.active { border-color: #22c55e; color: #22c55e; }
+    #notif-btn.denied { border-color: #ef4444; color: #ef4444; cursor: not-allowed; }
+
+    #messages {
+      flex: 1; overflow-y: auto; padding: 16px 20px;
+      display: flex; flex-direction: column; gap: 8px; scroll-behavior: smooth;
+    }
+    #messages::-webkit-scrollbar { width: 4px; }
+    #messages::-webkit-scrollbar-track { background: transparent; }
+    #messages::-webkit-scrollbar-thumb { background: #2a2a38; border-radius: 4px; }
+
+    .msg { display: flex; flex-direction: column; max-width: 78%; }
+    .msg.me { align-self: flex-end; align-items: flex-end; }
+    .msg.other { align-self: flex-start; align-items: flex-start; }
+    .msg-name { font-size: 0.72rem; color: #6b7280; margin-bottom: 3px; padding: 0 4px; }
+    .msg-bubble {
+      padding: 9px 14px; border-radius: 16px;
+      font-size: 0.92rem; line-height: 1.45; word-break: break-word;
+    }
+    .msg.me .msg-bubble {
+      background: linear-gradient(135deg, #7c3aed, #3b82f6);
+      color: #fff; border-bottom-right-radius: 4px;
+    }
+    .msg.other .msg-bubble { background: #1c1c26; color: #e8e8f0; border-bottom-left-radius: 4px; }
+    .msg-time { font-size: 0.68rem; color: #4b5563; margin-top: 3px; padding: 0 4px; }
+
+    .system-msg {
+      align-self: center; font-size: 0.75rem; color: #4b5563;
+      background: #1c1c26; padding: 4px 12px; border-radius: 20px; margin: 4px 0;
+    }
+    .history-divider {
+      align-self: center; font-size: 0.73rem; color: #4b5563;
+      display: flex; align-items: center; gap: 8px; margin: 8px 0; width: 100%;
+    }
+    .history-divider::before, .history-divider::after {
+      content: ''; flex: 1; height: 1px; background: #2a2a38;
+    }
+
+    #input-bar {
+      display: flex; gap: 10px; padding: 14px 16px;
+      background: #1c1c26; border-top: 1px solid #2a2a38;
+    }
+    #msg-input {
+      flex: 1; padding: 11px 15px; background: #0f0f13;
+      border: 1.5px solid #2a2a38; border-radius: 10px;
+      color: #e8e8f0; font-size: 0.95rem; outline: none;
+      resize: none; transition: border-color 0.2s;
+    }
+    #msg-input:focus { border-color: #a78bfa; }
+    #send-btn {
+      padding: 11px 18px;
+      background: linear-gradient(135deg, #7c3aed, #3b82f6);
+      border: none; border-radius: 10px; color: #fff;
+      font-size: 1.1rem; cursor: pointer; transition: opacity 0.2s; line-height: 1;
+    }
+    #send-btn:hover { opacity: 0.85; }
+
+    #status { text-align: center; font-size: 0.75rem; padding: 6px; color: #4b5563; background: #0f0f13; }
+    .status-connected { color: #22c55e !important; }
+    .status-disconnected { color: #ef4444 !important; }
+  </style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="logo">💬 PrivChat</div>
+  <p class="tagline">Nhập tên của bạn để bắt đầu trò chuyện</p>
+  <input id="username-input" type="text" placeholder="Tên của bạn..." maxlength="30" autofocus />
+  <button onclick="joinChat()">Vào phòng chat →</button>
+</div>
+
+<div id="chat-screen">
+  <header>
+    <span class="header-title">💬 PrivChat</span>
+    <div class="header-right">
+      <button id="notif-btn" onclick="toggleNotification()">🔔 Bật thông báo</button>
+      <span class="online-badge">
+        <span class="dot"></span>
+        <span id="online-count">0</span> online
+      </span>
+    </div>
+  </header>
+
+  <div id="messages"></div>
+  <div id="status">Đang kết nối...</div>
+
+  <div id="input-bar">
+    <textarea id="msg-input" rows="1" placeholder="Nhắn tin..."></textarea>
+    <button id="send-btn" onclick="sendMessage()">➤</button>
+  </div>
+</div>
+
+<script>
+  let ws = null;
+  let myUsername = '';
+  let notifEnabled = false;
+  let audioCtx = null;
+
+  // ── Âm thanh "ting" tạo bằng Web Audio API (không cần file) ──
+  function playTing() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 0.4);
+    } catch(e) {}
+  }
+
+  // ── Push Notification ──
+  async function toggleNotification() {
+    const btn = document.getElementById('notif-btn');
+
+    if (!('Notification' in window)) {
+      btn.textContent = '🚫 Không hỗ trợ';
+      btn.classList.add('denied');
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      btn.textContent = '🚫 Bị chặn (vào cài đặt trình duyệt)';
+      btn.classList.add('denied');
+      return;
+    }
+
+    if (!notifEnabled) {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        notifEnabled = true;
+        btn.textContent = '🔔 Thông báo: BẬT';
+        btn.classList.add('active');
+      } else {
+        btn.textContent = '🚫 Bị từ chối';
+        btn.classList.add('denied');
+      }
+    } else {
+      notifEnabled = false;
+      btn.textContent = '🔔 Bật thông báo';
+      btn.classList.remove('active');
+    }
+  }
+
+  function sendPushNotif(username, text) {
+    // Chỉ gửi khi tab đang ẩn hoặc không focus
+    if (notifEnabled && Notification.permission === 'granted' && document.hidden) {
+      new Notification(`💬 ${username}`, {
+        body: text.length > 60 ? text.slice(0, 60) + '...' : text,
+        icon: 'https://api.dicebear.com/7.x/bottts/svg?seed=privchat',
+        tag: 'privchat-msg',   // gộp thông báo, không spam
+        renotify: true
+      });
+    }
+  }
+
+  // ── Chat ──
+  function joinChat() {
+    const input = document.getElementById('username-input');
+    const name = input.value.trim();
+    if (!name) { input.focus(); return; }
+    myUsername = name;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('chat-screen').style.display = 'flex';
+    connectWS();
+  }
+
+  function connectWS() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+    ws.onopen = () => {
+      setStatus('Đã kết nối', true);
+      ws.send(JSON.stringify({ username: myUsername }));
+    };
+    ws.onclose = () => {
+      setStatus('Mất kết nối — đang thử lại...', false);
+      setTimeout(connectWS, 3000);
+    };
+    ws.onerror = () => setStatus('Lỗi kết nối', false);
+
+    ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+
+      if (data.type === 'init') {
+        updateOnline(data.online);
+        if (data.history && data.history.length > 0) {
+          const msgs = document.getElementById('messages');
+          const div = document.createElement('div');
+          div.className = 'history-divider';
+          div.textContent = `${data.history.length} tin nhắn gần nhất`;
+          msgs.appendChild(div);
+          data.history.forEach(m => appendMessage(m.username, m.text, m.username === myUsername, m.time));
+        }
+      } else if (data.type === 'message') {
+        const isMe = data.username === myUsername;
+        appendMessage(data.username, data.text, isMe, data.time);
+        if (data.online !== undefined) updateOnline(data.online);
+
+        // Thông báo chỉ khi không phải tin của mình
+        if (!isMe) {
+          playTing();
+          sendPushNotif(data.username, data.text);
+        }
+      } else if (data.type === 'system') {
+        appendSystem(data.text);
+        if (data.online !== undefined) updateOnline(data.online);
+      }
+    };
+  }
+
+  function sendMessage() {
+    const input = document.getElementById('msg-input');
+    const text = input.value.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'message', text }));
+    input.value = '';
+    input.style.height = 'auto';
+  }
+
+  function appendMessage(username, text, isMe, time) {
+    const msgs = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = `msg ${isMe ? 'me' : 'other'}`;
+    const timeStr = time || new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    div.innerHTML = `
+      ${!isMe ? `<div class="msg-name">${escHtml(username)}</div>` : ''}
+      <div class="msg-bubble">${escHtml(text)}</div>
+      <div class="msg-time">${timeStr}</div>
+    `;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function appendSystem(text) {
+    const msgs = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = 'system-msg';
+    div.textContent = text;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function updateOnline(n) { document.getElementById('online-count').textContent = n; }
+
+  function setStatus(msg, ok) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = ok ? 'status-connected' : 'status-disconnected';
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // Kiểm tra nếu đã cấp quyền thông báo từ trước
+    if ('Notification' in window && Notification.permission === 'granted') {
+      notifEnabled = true;
+      const btn = document.getElementById('notif-btn');
+      btn.textContent = '🔔 Thông báo: BẬT';
+      btn.classList.add('active');
+    }
+
+    const input = document.getElementById('msg-input');
+    if (input) {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+      });
+      input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+      });
+    }
+    const loginInput = document.getElementById('username-input');
+    if (loginInput) loginInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinChat(); });
+  });
+</script>
+</body>
+</html>
