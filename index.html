@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PrivChat</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f0f13; color: #e8e8f0;
+      height: 100dvh; display: flex; align-items: center; justify-content: center;
+    }
+    .auth-screen {
+      display: none; flex-direction: column; align-items: center;
+      gap: 18px; width: 100%; max-width: 360px; padding: 0 24px;
+    }
+    .auth-screen.active { display: flex; }
+    .logo {
+      font-size: 2.4rem; font-weight: 800; letter-spacing: -1px;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .tagline { font-size: 0.85rem; color: #6b7280; text-align: center; }
+    .auth-screen input {
+      width: 100%; padding: 13px 16px; background: #1c1c26;
+      border: 1.5px solid #2a2a38; border-radius: 10px;
+      color: #e8e8f0; font-size: 1rem; outline: none; transition: border-color 0.2s;
+    }
+    .auth-screen input:focus { border-color: #a78bfa; }
+    .btn-primary {
+      width: 100%; padding: 13px;
+      background: linear-gradient(135deg, #7c3aed, #3b82f6);
+      border: none; border-radius: 10px; color: #fff;
+      font-size: 1rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+    }
+    .btn-primary:hover { opacity: 0.88; }
+    .switch-link { font-size: 0.83rem; color: #6b7280; text-align: center; }
+    .switch-link span { color: #a78bfa; text-decoration: underline; cursor: pointer; }
+    .error-msg {
+      width: 100%; padding: 10px 14px; background: #2a1a1a;
+      border: 1px solid #7f1d1d; border-radius: 8px;
+      color: #fca5a5; font-size: 0.83rem; display: none;
+    }
+    .error-msg.show { display: block; }
+
+    #chat-screen {
+      display: none; flex-direction: column;
+      width: 100%; max-width: 700px; height: 100dvh; background: #13131a;
+    }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; background: #1c1c26; border-bottom: 1px solid #2a2a38;
+    }
+    .header-title {
+      font-weight: 700; font-size: 1.05rem;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .online-badge { font-size: 0.78rem; color: #6b7280; display: flex; align-items: center; gap: 5px; }
+    .dot { width: 7px; height: 7px; background: #22c55e; border-radius: 50%; }
+    #notif-btn {
+      background: #1c1c26; border: 1.5px solid #2a2a38; border-radius: 8px;
+      padding: 5px 10px; color: #6b7280; font-size: 0.78rem; cursor: pointer;
+      display: flex; align-items: center; gap: 5px; transition: all 0.2s; white-space: nowrap;
+    }
+    #notif-btn:hover { border-color: #a78bfa; color: #a78bfa; }
+    #notif-btn.active { border-color: #22c55e; color: #22c55e; }
+    #notif-btn.denied { border-color: #ef4444; color: #ef4444; cursor: not-allowed; }
+
+    #messages {
+      flex: 1; overflow-y: auto; padding: 16px 20px;
+      display: flex; flex-direction: column; gap: 8px; scroll-behavior: smooth;
+    }
+    #messages::-webkit-scrollbar { width: 4px; }
+    #messages::-webkit-scrollbar-thumb { background: #2a2a38; border-radius: 4px; }
+
+    .msg { display: flex; flex-direction: column; max-width: 78%; }
+    .msg.me { align-self: flex-end; align-items: flex-end; }
+    .msg.other { align-self: flex-start; align-items: flex-start; }
+    .msg-name { font-size: 0.72rem; color: #6b7280; margin-bottom: 3px; padding: 0 4px; }
+    .msg-bubble { padding: 9px 14px; border-radius: 16px; font-size: 0.92rem; line-height: 1.45; word-break: break-word; }
+    .msg.me .msg-bubble { background: linear-gradient(135deg, #7c3aed, #3b82f6); color: #fff; border-bottom-right-radius: 4px; }
+    .msg.other .msg-bubble { background: #1c1c26; color: #e8e8f0; border-bottom-left-radius: 4px; }
+    .msg-time { font-size: 0.68rem; color: #4b5563; margin-top: 3px; padding: 0 4px; }
+    .system-msg {
+      align-self: center; font-size: 0.75rem; color: #4b5563;
+      background: #1c1c26; padding: 4px 12px; border-radius: 20px; margin: 4px 0;
+    }
+    .history-divider {
+      align-self: center; font-size: 0.73rem; color: #4b5563;
+      display: flex; align-items: center; gap: 8px; margin: 8px 0; width: 100%;
+    }
+    .history-divider::before, .history-divider::after { content: ''; flex: 1; height: 1px; background: #2a2a38; }
+
+    #input-bar { display: flex; gap: 10px; padding: 14px 16px; background: #1c1c26; border-top: 1px solid #2a2a38; }
+    #msg-input {
+      flex: 1; padding: 11px 15px; background: #0f0f13;
+      border: 1.5px solid #2a2a38; border-radius: 10px;
+      color: #e8e8f0; font-size: 0.95rem; outline: none; resize: none; transition: border-color 0.2s;
+    }
+    #msg-input:focus { border-color: #a78bfa; }
+    #send-btn {
+      padding: 11px 18px; background: linear-gradient(135deg, #7c3aed, #3b82f6);
+      border: none; border-radius: 10px; color: #fff; font-size: 1.1rem; cursor: pointer; line-height: 1;
+    }
+    #send-btn:hover { opacity: 0.85; }
+    #status { text-align: center; font-size: 0.75rem; padding: 6px; color: #4b5563; background: #0f0f13; }
+    .status-connected { color: #22c55e !important; }
+    .status-disconnected { color: #ef4444 !important; }
+  </style>
+</head>
+<body>
+
+<!-- Đăng ký -->
+<div id="register-screen" class="auth-screen active">
+  <div class="logo">💬 PrivChat</div>
+  <p class="tagline">Tạo tài khoản để bắt đầu</p>
+  <input id="reg-name" type="text" placeholder="Tên người dùng..." maxlength="30" />
+  <input id="reg-pw"  type="password" placeholder="Mật khẩu (ít nhất 4 ký tự)..." />
+  <input id="reg-pw2" type="password" placeholder="Nhập lại mật khẩu..." />
+  <div id="reg-error" class="error-msg"></div>
+  <button class="btn-primary" id="reg-btn" onclick="doRegister()">Tạo tài khoản →</button>
+  <p class="switch-link">Đã có tài khoản? <span onclick="showLogin()">Đăng nhập</span></p>
+</div>
+
+<!-- Đăng nhập -->
+<div id="login-screen" class="auth-screen">
+  <div class="logo">💬 PrivChat</div>
+  <p class="tagline">Chào mừng trở lại!</p>
+  <input id="login-name" type="text" placeholder="Tên người dùng..." maxlength="30" />
+  <input id="login-pw"  type="password" placeholder="Mật khẩu..." />
+  <div id="login-error" class="error-msg"></div>
+  <button class="btn-primary" id="login-btn" onclick="doLogin()">Đăng nhập →</button>
+  <p class="switch-link">Chưa có tài khoản? <span onclick="showRegister()">Đăng ký</span></p>
+</div>
+
+<!-- Chat -->
+<div id="chat-screen">
+  <header>
+    <span class="header-title">💬 PrivChat</span>
+    <div class="header-right">
+      <button id="notif-btn" onclick="toggleNotification()">🔔 Bật thông báo</button>
+      <span class="online-badge"><span class="dot"></span><span id="online-count">0</span> online</span>
+    </div>
+  </header>
+  <div id="messages"></div>
+  <div id="status">Đang kết nối...</div>
+  <div id="input-bar">
+    <textarea id="msg-input" rows="1" placeholder="Nhắn tin..."></textarea>
+    <button id="send-btn" onclick="sendMessage()">➤</button>
+  </div>
+</div>
+
+<script>
+  let ws = null;
+  let myUsername = '';
+  let notifEnabled = false;
+  let audioUnlocked = false;
+
+  // ── Âm thanh ──────────────────────────────────────
+  // Tạo audio element sẵn, unlock khi user click lần đầu
+  const notifAudio = new Audio('notification.mp3');
+  notifAudio.preload = 'auto';
+
+  function unlockAudio() {
+    if (audioUnlocked) return;
+    // Phát im lặng để trình duyệt cho phép audio
+    notifAudio.volume = 0;
+    notifAudio.play().then(() => {
+      notifAudio.pause();
+      notifAudio.currentTime = 0;
+      notifAudio.volume = 0.6;
+      audioUnlocked = true;
+    }).catch(() => {});
+  }
+
+  function playTing() {
+    if (!audioUnlocked) return;
+    notifAudio.currentTime = 0;
+    notifAudio.volume = 0.6;
+    notifAudio.play().catch(() => {});
+  }
+
+  // ── Push Notification ──────────────────────────────
+  async function toggleNotification() {
+    const btn = document.getElementById('notif-btn');
+    if (!('Notification' in window)) {
+      btn.textContent = '🚫 Không hỗ trợ'; btn.classList.add('denied'); return;
+    }
+    if (Notification.permission === 'denied') {
+      btn.textContent = '🚫 Bị chặn — vào cài đặt trình duyệt để mở lại';
+      btn.classList.add('denied'); return;
+    }
+    if (!notifEnabled) {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        notifEnabled = true;
+        btn.textContent = '🔔 Thông báo: BẬT'; btn.classList.add('active');
+        localStorage.setItem('privchat_notif', '1');
+      } else {
+        btn.textContent = '🚫 Bị từ chối'; btn.classList.add('denied');
+      }
+    } else {
+      notifEnabled = false;
+      btn.textContent = '🔔 Bật thông báo'; btn.classList.remove('active');
+      localStorage.setItem('privchat_notif', '0');
+    }
+  }
+
+  function sendPushNotif(username, text) {
+    if (notifEnabled && Notification.permission === 'granted' && document.hidden) {
+      new Notification(`💬 ${username}`, {
+        body: text.length > 60 ? text.slice(0, 60) + '...' : text,
+        tag: 'privchat-msg', renotify: true
+      });
+    }
+  }
+
+  // ── localStorage helpers ───────────────────────────
+  // Lưu thông tin tài khoản đã đăng ký trên máy này
+  function getLocalAccount() {
+    try { return JSON.parse(localStorage.getItem('privchat_account') || 'null'); } catch { return null; }
+  }
+  function setLocalAccount(username) {
+    localStorage.setItem('privchat_account', JSON.stringify({ username }));
+  }
+
+  // Lưu phiên đăng nhập hiện tại (mất khi đóng tab)
+  function getSession() { return sessionStorage.getItem('privchat_user'); }
+  function setSession(u) { sessionStorage.setItem('privchat_user', u); }
+
+  // ── Auth UI ────────────────────────────────────────
+  function showLogin() {
+    document.getElementById('register-screen').classList.remove('active');
+    document.getElementById('login-screen').classList.add('active');
+    // Điền sẵn tên nếu máy đã có tài khoản
+    const acc = getLocalAccount();
+    if (acc) document.getElementById('login-name').value = acc.username;
+    document.getElementById('login-pw').focus();
+  }
+
+  function showRegister() {
+    document.getElementById('login-screen').classList.remove('active');
+    document.getElementById('register-screen').classList.add('active');
+  }
+
+  function showError(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg; el.classList.add('show');
+  }
+  function hideError(id) { document.getElementById(id).classList.remove('show'); }
+
+  async function doRegister() {
+    hideError('reg-error');
+    const name = document.getElementById('reg-name').value.trim();
+    const pw   = document.getElementById('reg-pw').value;
+    const pw2  = document.getElementById('reg-pw2').value;
+
+    if (!name || !pw)  return showError('reg-error', 'Vui lòng điền đầy đủ thông tin');
+    if (pw !== pw2)    return showError('reg-error', 'Mật khẩu nhập lại không khớp');
+    if (pw.length < 4) return showError('reg-error', 'Mật khẩu phải ít nhất 4 ký tự');
+
+    // Kiểm tra máy này đã có tài khoản chưa
+    const existing = getLocalAccount();
+    if (existing) {
+      return showError('reg-error', `Máy này đã có tài khoản "${existing.username}". Hãy đăng nhập!`);
+    }
+
+    document.getElementById('reg-btn').disabled = true;
+    try {
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: name, password: pw })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        return showError('reg-error', data.detail || 'Đăng ký thất bại');
+      }
+      setLocalAccount(name);   // Ghi nhớ máy này đã có tài khoản
+      enterChat(name);
+    } catch {
+      showError('reg-error', 'Không thể kết nối server');
+    } finally {
+      document.getElementById('reg-btn').disabled = false;
+    }
+  }
+
+  async function doLogin() {
+    hideError('login-error');
+    const name = document.getElementById('login-name').value.trim();
+    const pw   = document.getElementById('login-pw').value;
+
+    if (!name || !pw) return showError('login-error', 'Vui lòng điền đầy đủ thông tin');
+
+    document.getElementById('login-btn').disabled = true;
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: name, password: pw })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        return showError('login-error', data.detail || 'Đăng nhập thất bại');
+      }
+      setLocalAccount(name);
+      enterChat(name);
+    } catch {
+      showError('login-error', 'Không thể kết nối server');
+    } finally {
+      document.getElementById('login-btn').disabled = false;
+    }
+  }
+
+  function enterChat(username) {
+    myUsername = username;
+    setSession(username);
+
+    document.getElementById('register-screen').classList.remove('active');
+    document.getElementById('login-screen').classList.remove('active');
+    document.getElementById('chat-screen').style.display = 'flex';
+
+    // Khôi phục trạng thái thông báo
+    if ('Notification' in window && Notification.permission === 'granted'
+        && localStorage.getItem('privchat_notif') === '1') {
+      notifEnabled = true;
+      const btn = document.getElementById('notif-btn');
+      btn.textContent = '🔔 Thông báo: BẬT'; btn.classList.add('active');
+    }
+
+    connectWS();
+  }
+
+  // ── WebSocket ──────────────────────────────────────
+  function connectWS() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+    ws.onopen = () => {
+      setStatus('Đã kết nối', true);
+      ws.send(JSON.stringify({ username: myUsername }));
+    };
+    ws.onclose = () => {
+      setStatus('Mất kết nối — đang thử lại...', false);
+      setTimeout(connectWS, 3000);
+    };
+    ws.onerror = () => setStatus('Lỗi kết nối', false);
+
+    ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      if (data.type === 'init') {
+        updateOnline(data.online);
+        if (data.history && data.history.length > 0) {
+          const msgs = document.getElementById('messages');
+          const div = document.createElement('div');
+          div.className = 'history-divider';
+          div.textContent = `${data.history.length} tin nhắn gần nhất`;
+          msgs.appendChild(div);
+          data.history.forEach(m => appendMessage(m.username, m.text, m.username === myUsername, m.time));
+        }
+      } else if (data.type === 'message') {
+        const isMe = data.username === myUsername;
+        appendMessage(data.username, data.text, isMe, data.time);
+        if (data.online !== undefined) updateOnline(data.online);
+        if (!isMe) { playTing(); sendPushNotif(data.username, data.text); }
+      } else if (data.type === 'system') {
+        appendSystem(data.text);
+        if (data.online !== undefined) updateOnline(data.online);
+      }
+    };
+  }
+
+  function sendMessage() {
+    const input = document.getElementById('msg-input');
+    const text = input.value.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'message', text }));
+    input.value = ''; input.style.height = 'auto';
+  }
+
+  function appendMessage(username, text, isMe, time) {
+    const msgs = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = `msg ${isMe ? 'me' : 'other'}`;
+    const timeStr = time || new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    div.innerHTML = `
+      ${!isMe ? `<div class="msg-name">${esc(username)}</div>` : ''}
+      <div class="msg-bubble">${esc(text)}</div>
+      <div class="msg-time">${timeStr}</div>
+    `;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function appendSystem(text) {
+    const msgs = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = 'system-msg'; div.textContent = text;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function updateOnline(n) { document.getElementById('online-count').textContent = n; }
+  function setStatus(msg, ok) {
+    const el = document.getElementById('status');
+    el.textContent = msg; el.className = ok ? 'status-connected' : 'status-disconnected';
+  }
+  function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // ── Khởi động ──────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    // Unlock audio khi user click bất kỳ đâu lần đầu
+    document.addEventListener('click', unlockAudio, { once: true });
+    document.addEventListener('keydown', unlockAudio, { once: true });
+
+    // Nếu tab còn phiên → vào chat luôn
+    const session = getSession();
+    if (session) { enterChat(session); return; }
+
+    // Nếu máy đã có tài khoản → chuyển sang đăng nhập
+    const acc = getLocalAccount();
+    if (acc) { showLogin(); return; }
+
+    // Máy mới → hiện đăng ký
+    document.getElementById('register-screen').classList.add('active');
+
+    // Keyboard
+    const msgInput = document.getElementById('msg-input');
+    if (msgInput) {
+      msgInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+      });
+      msgInput.addEventListener('input', () => {
+        msgInput.style.height = 'auto';
+        msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+      });
+    }
+    document.getElementById('reg-pw2').addEventListener('keydown',  e => { if (e.key === 'Enter') doRegister(); });
+    document.getElementById('login-pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  });
+</script>
+</body>
+</html>
