@@ -2,41 +2,41 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-import json, sqlite3, os, hashlib
+import json, os, hashlib, psycopg2, psycopg2.extras
 from typing import Dict
 from datetime import datetime
 
 app = FastAPI()
 
-# Lưu DB cạnh file server.py (không dùng /data vì Render free không có persistent disk mặc định)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH  = os.path.join(BASE_DIR, "chat.db")
 
-# ── Database ──────────────────────────────────────────
+# ── Database (PostgreSQL) ─────────────────────────────
+DATABASE_URL = os.environ.get("DATABASE_URL")  # Render tự inject biến này
+
 def get_conn():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
 
 def init_db():
     conn = get_conn()
-    conn.execute("""
+    cur = conn.cursor()
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            username   TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            id         SERIAL PRIMARY KEY,
+            username   TEXT NOT NULL UNIQUE,
             password   TEXT NOT NULL,
             created_at TEXT NOT NULL
         )
     """)
-    conn.execute("""
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS messages (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            id         SERIAL PRIMARY KEY,
             username   TEXT NOT NULL,
             text       TEXT NOT NULL,
             created_at TEXT NOT NULL
         )
     """)
     conn.commit()
+    cur.close()
     conn.close()
 
 def hash_pw(pw: str) -> str:
@@ -44,48 +44,56 @@ def hash_pw(pw: str) -> str:
 
 def user_exists(username: str) -> bool:
     conn = get_conn()
-    row = conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone()
-    conn.close()
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM users WHERE LOWER(username) = LOWER(%s)", (username,))
+    row = cur.fetchone()
+    cur.close(); conn.close()
     return row is not None
 
 def register_user(username: str, password: str) -> bool:
     try:
         conn = get_conn()
-        conn.execute(
-            "INSERT INTO users (username, password, created_at) VALUES (?, ?, ?)",
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO users (username, password, created_at) VALUES (%s, %s, %s)",
             (username, hash_pw(password), datetime.now().isoformat())
         )
         conn.commit()
-        conn.close()
+        cur.close(); conn.close()
         return True
-    except sqlite3.IntegrityError:
+    except psycopg2.IntegrityError:
         return False
 
 def login_user(username: str, password: str) -> bool:
     conn = get_conn()
-    row = conn.execute(
-        "SELECT 1 FROM users WHERE username = ? AND password = ?",
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT 1 FROM users WHERE LOWER(username) = LOWER(%s) AND password = %s",
         (username, hash_pw(password))
-    ).fetchone()
-    conn.close()
+    )
+    row = cur.fetchone()
+    cur.close(); conn.close()
     return row is not None
 
 def save_message(username: str, text: str):
     conn = get_conn()
-    conn.execute(
-        "INSERT INTO messages (username, text, created_at) VALUES (?, ?, ?)",
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO messages (username, text, created_at) VALUES (%s, %s, %s)",
         (username, text, datetime.now().strftime("%H:%M %d/%m/%Y"))
     )
     conn.commit()
-    conn.close()
+    cur.close(); conn.close()
 
 def get_recent_messages(limit: int = 50):
     conn = get_conn()
-    rows = conn.execute(
-        "SELECT username, text, created_at FROM messages ORDER BY id DESC LIMIT ?", (limit,)
-    ).fetchall()
-    conn.close()
-    return list(reversed([dict(r) for r in rows]))
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT username, text, created_at FROM messages ORDER BY id DESC LIMIT %s", (limit,)
+    )
+    rows = cur.fetchall()
+    cur.close(); conn.close()
+    return list(reversed(rows))
 
 init_db()
 
@@ -93,6 +101,20 @@ init_db()
 class AuthBody(BaseModel):
     username: str
     password: str
+
+RESET_SECRET = "privchat-reset-2024"
+
+@app.get("/api/reset/{secret}")
+def reset_db(secret: str):
+    if secret != RESET_SECRET:
+        raise HTTPException(403, "Sai mật khẩu")
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM users")
+    cur.execute("DELETE FROM messages")
+    conn.commit()
+    cur.close(); conn.close()
+    return {"ok": True, "msg": "Đã xóa toàn bộ tài khoản và tin nhắn"}
 
 @app.post("/api/register")
 def api_register(body: AuthBody):
